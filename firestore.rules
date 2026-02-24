@@ -1,0 +1,80 @@
+// firestore.rules
+// ─────────────────────────────────────────────────────────────────────────────
+// Firestore Security Rules — LogistikSiaga
+//
+// Deploy with: firebase deploy --only firestore:rules
+// Test with:   firebase emulators:start
+// ─────────────────────────────────────────────────────────────────────────────
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ─────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(["type", "severity", "description", "location", "imageUrl", "status", "voteCount", "reportedBy", "needs"])
+        && data.type in ["flood", "landslide", "fire", "earthquake", "other"]
+        && data.severity in ["kritis", "sedang", "waspada"]
+        && data.status in ["pending", "verified", "rejected"]
+        && data.location.keys().hasAll(["lat", "lng", "name"])
+        && data.description is string && data.description.size() > 0
+        && data.imageUrl is string
+        && data.voteCount == 0  // must start at 0
+        && data.needs is list;
+    }
+
+    // ── Reports Collection ────────────────────────────────────────────────────
+
+    match /reports/{reportId} {
+
+      // Anyone can read reports (public feed)
+      allow read: if true;
+
+      // Only authenticated users can create
+      allow create: if isAuthenticated()
+        && isValidReport(request.resource.data)
+        && request.resource.data.reportedBy == request.auth.token.name;
+
+      // Allow upvoting (only voteCount increment) or full update if admin
+      allow update: if isAuthenticated()
+        && (
+          // Upvote: only voteCount changes, by exactly 1
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["voteCount"])
+            && request.resource.data.voteCount == resource.data.voteCount + 1)
+          ||
+          // Verification: only status changes, requires custom claim
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
+            && request.auth.token.admin == true)
+        );
+
+      // Only admins can delete
+      allow delete: if isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // ── Logistics Needs Collection ────────────────────────────────────────────
+
+    match /needs/{needId} {
+      allow read:   if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["collected"]);
+      allow delete: if isAuthenticated() && request.auth.token.admin == true;
+    }
+
+    // ── Offers Collection ─────────────────────────────────────────────────────
+
+    match /offers/{offerId} {
+      allow read:   if true;
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated()
+        && resource.data.donorId == request.auth.uid;
+    }
+  }
+}
