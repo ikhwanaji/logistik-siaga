@@ -1,36 +1,30 @@
 // src/store/useAppStore.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// Zustand Global Store — LogistikSiaga
-//
-// This store is the single source of truth for the app.
-// Firebase's onSnapshot writes INTO this store, so all components
-// that consume it re-render automatically when new data arrives.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { AppState, Report } from '@/types';
+import { AppState, Report, UserProfile } from '@/types';
 
 export const useAppStore = create<AppState>()(
   devtools(
     (set) => ({
       // ── Initial State ───────────────────────────────────────────────────────
       reports: [],
+      offers: [],
       liveCount: 0,
       isConnected: false,
       donatedItems: {},
+
+      // Auth State (Default Loading harus TRUE agar tidak flickering)
+      currentUser: null,
+      isLoadingAuth: true,
+
       // ── Actions ─────────────────────────────────────────────────────────────
 
-      /** Called by onSnapshot listener in useRealtimeReports hook */
       setReports: (reports: Report[]) => set({ reports, liveCount: reports.length }, false, 'setReports'),
+      
+      setOffers: (offers) => set({ offers }, false, "setOffers"),
 
       setIsConnected: (v: boolean) => set({ isConnected: v }, false, 'setIsConnected'),
 
-      /**
-       * Optimistic update: add a report locally BEFORE Firestore confirms.
-       * This makes the UI feel instant. Firestore's onSnapshot will then
-       * overwrite this with the server-confirmed version.
-       */
       addOptimisticReport: (report: Report) =>
         set(
           (state) => ({
@@ -48,22 +42,22 @@ export const useAppStore = create<AppState>()(
             return {
               donatedItems: {
                 ...state.donatedItems,
-                [id]: !currentStatus, // Switch true/false
+                [id]: !currentStatus,
               },
-              // (Opsional) Jika nanti ada sistem poin user, update di sini:
-              // userPoints: state.userPoints + (currentStatus ? -points : points)
             };
           },
           false,
           'toggleDonation',
         ),
+
+      // ACTION PENTING: Mengubah user dan mematikan loading
+      setCurrentUser: (user: UserProfile | null) => set({ currentUser: user, isLoadingAuth: false }, false, 'setCurrentUser'),
     }),
     { name: 'LogistikSiagaStore' },
   ),
 );
 
-// ─── Typed Selectors (use these in components for performance) ────────────────
-
+// Selectors
 export const selectReports = (s: AppState) => s.reports;
 export const selectLiveCount = (s: AppState) => s.liveCount;
 export const selectIsConnected = (s: AppState) => s.isConnected;
