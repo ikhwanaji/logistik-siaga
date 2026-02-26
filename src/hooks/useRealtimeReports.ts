@@ -11,21 +11,13 @@
 // Usage: Call this ONCE in your root layout or Dashboard page.
 // ─────────────────────────────────────────────────────────────────────────────
 
-"use client";
+'use client';
 
-import { useEffect, useRef } from "react";
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  onSnapshot,
-  Timestamp,
-  FirestoreError,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useAppStore } from "@/store/useAppStore";
-import { Report, FirestoreReport } from "@/types";
+import { useEffect, useRef } from 'react';
+import { collection, query, orderBy, limit, onSnapshot, Timestamp, FirestoreError } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAppStore } from '@/store/useAppStore';
+import { Report, FirestoreReport } from '@/types';
 
 // ─── Converter: raw Firestore doc → typed Report ──────────────────────────────
 function convertDoc(raw: FirestoreReport & { id: string }): Report {
@@ -43,19 +35,15 @@ interface Options {
 }
 
 export function useRealtimeReports({ maxItems = 50 }: Options = {}) {
-  const setReports     = useAppStore((s) => s.setReports);
+  const setReports = useAppStore((s) => s.setReports);
   const setIsConnected = useAppStore((s) => s.setIsConnected);
 
   // Track if first snapshot has arrived (for loading state)
   const isFirstSnapshotRef = useRef(true);
 
   useEffect(() => {
-    const reportsRef = collection(db, "reports");
-    const q = query(
-      reportsRef,
-      orderBy("timestamp", "desc"),
-      limit(maxItems)
-    );
+    const reportsRef = collection(db, 'reports');
+    const q = query(reportsRef, orderBy('timestamp', 'desc'), limit(maxItems));
 
     setIsConnected(false); // mark as connecting
 
@@ -64,7 +52,10 @@ export function useRealtimeReports({ maxItems = 50 }: Options = {}) {
       // ── Success handler ───────────────────────────────────────────────────
       (snapshot) => {
         const reports: Report[] = snapshot.docs.map((doc) =>
-          convertDoc({ id: doc.id, ...(doc.data() as FirestoreReport) })
+          convertDoc({
+            ...(doc.data() as FirestoreReport), 
+            id: doc.id, // 
+          }),
         );
 
         setReports(reports);
@@ -73,14 +64,14 @@ export function useRealtimeReports({ maxItems = 50 }: Options = {}) {
       },
       // ── Error handler ─────────────────────────────────────────────────────
       (error: FirestoreError) => {
-        console.error("[useRealtimeReports] Firestore error:", error.code, error.message);
+        console.error('[useRealtimeReports] Firestore error:', error.code, error.message);
         setIsConnected(false);
 
         // Retry logic for permission errors (e.g., user not yet authed)
-        if (error.code === "permission-denied") {
-          console.warn("[useRealtimeReports] Check Firestore security rules.");
+        if (error.code === 'permission-denied') {
+          console.warn('[useRealtimeReports] Check Firestore security rules.');
         }
-      }
+      },
     );
 
     // ── Cleanup on unmount ─────────────────────────────────────────────────

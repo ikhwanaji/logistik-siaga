@@ -3,91 +3,126 @@
 // Shared TypeScript Types — LogistikSiaga
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FieldValue, Timestamp } from "firebase/firestore";
+import { FieldValue, Timestamp } from 'firebase/firestore';
 
-// ─── Firestore Document Shape ─────────────────────────────────────────────────
+export type ReportSeverity = 'kritis' | 'sedang' | 'waspada';
+export type ReportStatus = 'verified' | 'pending' | 'rejected';
+export type ReportType = 'flood' | 'landslide' | 'fire' | 'earthquake' | 'other';
+export type UserRole = 'user' | 'admin';
 
-export type ReportSeverity = "kritis" | "sedang" | "waspada";
-export type ReportStatus   = "verified" | "pending" | "rejected";
-export type ReportType     = "flood" | "landslide" | "fire" | "earthquake" | "other";
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL: string;
+  role: UserRole;
+  points: number;
+  badges: string[];
+  createdAt: Date;
+}
+
+export interface LogisticOffer {
+  id: string;
+  item: string;
+  qty: string;
+  category?: string;
+  description?: string;
+  imageUrl?: string;
+  donor: string; // Nama donatur
+  donorAvatar?: string;
+  location: string; // Nama lokasi
+  status: 'available' | 'claimed';
+  createdAt?: Date;
+}
 
 export interface GeoLocation {
-  lat:  number;
-  lng:  number;
+  lat: number;
+  lng: number;
   name: string; // Human-readable address (e.g., "Kampung Melayu, Jakarta Timur")
 }
 
 /** Shape stored in Firestore `reports` collection */
 export interface FirestoreReport {
-  id:          string;
-  timestamp:   Timestamp | FieldValue; // serverTimestamp() on write, Timestamp on read
-  type:        ReportType;
-  severity:    ReportSeverity;
+  id: string;
+  timestamp: Timestamp | FieldValue; // serverTimestamp() on write, Timestamp on read
+  type: ReportType;
+  severity: ReportSeverity;
   description: string;
-  location:    GeoLocation;
-  imageUrl:    string;
-  status:      ReportStatus;
-  voteCount:   number;
-  reportedBy:  string; // display name
-  needs:       string[]; // e.g. ["Air Mineral", "Selimut"]
+  location: GeoLocation;
+  imageUrl: string;
+  status: ReportStatus;
+  voteCount: number;
+  reportedBy: string; // display name
+  needs: string[]; // e.g. ["Air Mineral", "Selimut"]
 }
 
 /** Client-side version (timestamp already resolved) */
-export interface Report extends Omit<FirestoreReport, "timestamp"> {
+export interface Report extends Omit<FirestoreReport, 'timestamp'> {
   timestamp: Date;
 }
 
 // ─── Logistics ────────────────────────────────────────────────────────────────
 
-export type NeedCategory = "Pangan" | "Sandang" | "Medis" | "Bayi" | "Infrastruktur";
+export type NeedCategory = 'Pangan' | 'Sandang' | 'Medis' | 'Bayi' | 'Infrastruktur';
 
 export interface LogisticNeed {
-  id:        string;
-  item:      string;
-  unit:      string;
-  location:  string;
+  id: string;
+  item: string;
+  unit: string;
+  location: string;
   collected: number;
-  total:     number;
-  urgent:    boolean;
-  category:  NeedCategory;
+  total: number;
+  urgent: boolean;
+  category: NeedCategory;
   linkedReportId?: string; // optional: links to a report
 }
 
 export interface LogisticOffer {
-  id:       string;
-  item:     string;
-  qty:      string;
-  donor:    string;
+  id: string;
+  item: string;
+  qty: string;
+  donor: string;
   location: string;
-  status:   "available" | "claimed";
+  status: 'available' | 'claimed';
 }
 
 // ─── AI Analysis Result ───────────────────────────────────────────────────────
 
 export interface AIAnalysisResult {
-  type:        ReportType;
-  severity:    ReportSeverity;
+  type: ReportType;
+  severity: ReportSeverity;
   description: string;
-  needs:       string[];
-  confidence:  number; // 0–100
+  needs: string[];
+  confidence: number; // 0–100
 }
 
 // ─── Zustand Store ────────────────────────────────────────────────────────────
 
 export interface AppState {
-  // Data
-  reports:     Report[];
-  liveCount:   number;
+  // Data Laporan
+  reports: Report[];
+  liveCount: number;
 
+  // Data Donasi
   donatedItems: Record<string, boolean>;
 
   // UI State
-  isConnected: boolean; // Firestore real-time connection status
+  isConnected: boolean;
+
+  // Auth State (WAJIB ADA)
+  currentUser: UserProfile | null;
+  isLoadingAuth: boolean;
+
+  offers: LogisticOffer[];
 
   // Actions
-  setReports:     (reports: Report[]) => void;
+  setReports: (reports: Report[]) => void;
   setIsConnected: (v: boolean) => void;
   addOptimisticReport: (report: Report) => void;
-
   toggleDonation: (id: string, points: number) => void;
+
+  // Auth Actions 
+  setCurrentUser: (user: UserProfile | null) => void;
+  
+  setOffers: (offers: LogisticOffer[]) => void;
 }

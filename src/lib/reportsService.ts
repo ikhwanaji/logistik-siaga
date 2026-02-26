@@ -6,7 +6,7 @@
 // from this file — never call Firestore directly in UI code.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { collection, addDoc, updateDoc, doc, increment, serverTimestamp, query, orderBy, limit, getDocs, where, QueryConstraint } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, increment, serverTimestamp, query, orderBy, limit, getDocs, where, QueryConstraint, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { FirestoreReport, Report, ReportSeverity, ReportType, AIAnalysisResult, GeoLocation } from '@/types';
 
@@ -90,4 +90,40 @@ export async function fetchReports(options?: { maxItems?: number; severity?: Rep
       timestamp: ts?.toDate ? ts.toDate() : new Date(),
     } as Report;
   });
+}
+
+export async function getReportById(id: string): Promise<Report | null> {
+  try {
+    const docRef = doc(db, 'reports', id);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+
+      // KONVERSI TIMESTAMP PENTING DI SINI 👇
+      let resolvedDate: Date;
+
+      if (data.timestamp instanceof Timestamp) {
+        // Jika formatnya Firestore Timestamp, gunakan .toDate()
+        resolvedDate = data.timestamp.toDate();
+      } else if (data.timestamp?.seconds) {
+        // Jika formatnya objek { seconds: ... }, buat Date manual
+        resolvedDate = new Date(data.timestamp.seconds * 1000);
+      } else {
+        // Fallback ke Date sekarang atau format string/date biasa
+        resolvedDate = new Date(data.timestamp || Date.now());
+      }
+
+      return {
+        id: docSnap.id,
+        ...data,
+        timestamp: resolvedDate, // ✅ Sekarang pasti objek Date JS valid
+      } as Report;
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching report:', error);
+    return null;
+  }
 }
