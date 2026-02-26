@@ -1,16 +1,3 @@
-// src/hooks/useRealtimeReports.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// Real-Time Firestore Listener Hook
-//
-// This hook establishes an onSnapshot listener that:
-//   1. Subscribes to the `reports` collection (ordered by timestamp desc)
-//   2. Converts Firestore Timestamps → JS Date objects
-//   3. Pushes data into Zustand store via setReports()
-//   4. Cleans up on component unmount (prevents memory leaks)
-//
-// Usage: Call this ONCE in your root layout or Dashboard page.
-// ─────────────────────────────────────────────────────────────────────────────
-
 'use client';
 
 import { useEffect, useRef } from 'react';

@@ -164,7 +164,7 @@ export default function ProfilePage() {
       <div className={`relative flex items-center gap-4 transition-all ${currentView !== 'main' ? 'pl-8' : ''}`}>
         {/* Avatar Wrapper with Edit Button */}
         <div className="relative group">
-          <div className="w-16 h-16 rounded-2xl bg-white/20 p-1 border-2 border-white/30 overflow-hidden flex-shrink-0 relative">
+          <div className="w-16 h-16 rounded-2xl bg-white/20 p-1 border-2 border-white/30 overflow-hidden shrink-0 relative">
             {currentUser.photoURL ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={currentUser.photoURL} alt="Profile" className="w-full h-full object-cover rounded-xl" />

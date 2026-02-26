@@ -55,7 +55,7 @@ function NotificationDropdown({ isOpen, onClose }: { isOpen: boolean; onClose: (
           <h3 className="font-bold text-slate-700 text-xs">Notifikasi</h3>
           <span className="text-[10px] text-slate-400">Tandai dibaca</span>
         </div>
-        <div className="max-h-[300px] overflow-y-auto">
+        <div className="max-h-75 overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center px-4">
               <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3 text-slate-300">
@@ -117,7 +117,7 @@ function FeedItem({ report, onUpvote, hasVoted }: { report: Report; onUpvote: (i
         <div className="relative mb-3 group overflow-hidden rounded-xl">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={report.imageUrl} alt="Bukti Laporan" className="w-full h-32 object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       )}
 
@@ -252,7 +252,7 @@ export default function HomePage() {
 
       <div className="px-4 py-4 space-y-5">
         {/* ── STATUS CARD (SIAGA) ── */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-600 to-red-800 text-white p-6 shadow-xl shadow-red-200">
+        <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-red-600 to-red-800 text-white p-6 shadow-xl shadow-red-200">
           <div className="absolute inset-0 opacity-10 pointer-events-none">
             <div className="absolute -top-12 -right-12 w-48 h-48 bg-white rounded-full mix-blend-overlay" />
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-white rounded-full mix-blend-overlay blur-2xl" />

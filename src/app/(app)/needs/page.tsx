@@ -196,7 +196,7 @@ export default function LogisticsPage() {
         {/* Banner Donasi Uang */}
         <div
           onClick={() => setShowMoneyModal(true)}
-          className="mt-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-4 text-white shadow-lg shadow-blue-200 cursor-pointer active:scale-95 transition-transform relative overflow-hidden"
+          className="mt-4 bg-linear-to-r from-blue-600 to-blue-500 rounded-2xl p-4 text-white shadow-lg shadow-blue-200 cursor-pointer active:scale-95 transition-transform relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-8 translate-x-8" />
           <div className="flex items-center gap-3 relative z-10">
