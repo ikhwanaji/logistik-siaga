@@ -29,7 +29,7 @@ export default function BottomNav() {
       label: 'Laporan',
       href: '/report',
       icon: AlertTriangle,
-      variant: 'special', // Menu Spesial (Floating)
+      variant: 'special', 
     },
     {
       id: 'needs',
@@ -68,7 +68,7 @@ export default function BottomNav() {
                     className={cn(
                       'w-16 h-16 rounded-full flex items-center justify-center border-4 border-slate-50 transition-all duration-300 shadow-lg',
                       active
-                        ? 'bg-red-600 shadow-red-200' // Aktif: Merah Solid
+                        ? 'bg-red-600 shadow-red-200' 
                         : 'bg-white shadow-slate-200', // Inaktif: Putih
                     )}
                   >
