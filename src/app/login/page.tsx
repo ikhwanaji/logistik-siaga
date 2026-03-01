@@ -70,18 +70,42 @@ export default function AuthPage() {
 
   const handleForgotPass = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 1. Validasi Input Kosong
     if (!formData.email) {
-      toast.warning("Masukkan Email", { description: "Email diperlukan untuk reset password." });
+      toast.warning("Email Kosong", { description: "Masukkan alamat email Anda terlebih dahulu." });
+      return;
+    }
+
+    // 2. Validasi Format Email (Regex Sederhana)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error("Format Email Salah", { description: "Mohon masukkan email yang valid." });
       return;
     }
 
     setIsLoading(true);
     try {
       await resetPassword(formData.email);
-      toast.success("Email Terkirim", { description: "Cek inbox email Anda untuk reset password." });
-      setView('login');
+      
+      // 3. UX Success: Beritahu user langkah selanjutnya
+      toast.success("Link Terkirim! 📧", { 
+        description: "Cek Inbox atau folder Spam email Anda untuk mereset password.",
+        duration: 5000, // Tampil agak lama biar terbaca
+      });
+      
+      // 4. Kembalikan ke view login agar user siap-siap login
+      setView('login'); 
+      
     } catch (error: any) {
-      toast.error("Gagal Kirim", { description: getAuthErrorMessage(error) });
+      console.error("Reset Password Error:", error);
+      
+      // Handle error spesifik Firebase
+      if (error.code === 'auth/user-not-found') {
+        toast.error("Jika email terdaftar, link akan dikirim", { description: "Cek folder spam" });
+      } else {
+        toast.error("Gagal Kirim Email", { description: getAuthErrorMessage(error) });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -91,10 +115,11 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       await signInWithGoogle();
-      toast.success("Login Google Berhasil");
+      toast.success("Login Google Berhasil", { description: "Mengalihkan..." });
       router.push('/home');
-    } catch (error) {
-      toast.error("Login Dibatalkan");
+    } catch (error: any) {
+      console.error("Google Login Error:", error); // Penting untuk debugging
+      toast.error("Gagal Login Google", { description: getAuthErrorMessage(error) });
     } finally {
       setIsLoading(false);
     }

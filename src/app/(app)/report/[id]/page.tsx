@@ -1,4 +1,3 @@
-// src/app/(app)/report/[id]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -9,7 +8,6 @@ import { SEVERITY_CONFIG, TYPE_CONFIG } from '@/lib/aiAnalysis';
 import { Loader2, ArrowLeft, MapPin, Calendar, User, Shield, Package } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
-// Map hanya diload di client
 const ReportMap = dynamic(() => import('@/components/map/ReportMap'), {
   ssr: false,
   loading: () => <div className="h-48 bg-slate-100 animate-pulse rounded-xl" />,
@@ -59,7 +57,6 @@ export default function ReportDetailPage() {
     <div className="min-h-screen bg-white pb-24">
       {/* Header Image & Nav */}
       <div className="relative h-72 bg-slate-200">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={report.imageUrl} alt="Detail Bencana" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
 
@@ -135,11 +132,6 @@ export default function ReportDetailPage() {
           </p>
         </div>
       </div>
-
-      {/* Floating Action Button */}
-      {/* <div className="fixed bottom-0 left-0 right-0 p-5 bg-white border-t border-slate-100">
-        <button className="w-full bg-red-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-red-200 active:scale-95 transition-transform">Kirim Bantuan Logistik</button>
-      </div> */}
     </div>
   );
 }

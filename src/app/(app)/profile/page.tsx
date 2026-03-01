@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/store/useAppStore';
 import { signOut } from '@/lib/authService';
 import { useFirebaseUpload } from '@/hooks/useFirebaseUpload';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { toast } from 'sonner';
@@ -19,7 +19,6 @@ export default function ProfilePage() {
   const { currentUser, isLoadingAuth, donatedItems, reports, setCurrentUser } = useAppStore();
   const [currentView, setCurrentView] = useState<ProfileView>('main');
 
-  // State untuk Form Biodata
   const [formData, setFormData] = useState({
     phoneNumber: '',
     address: '',
@@ -27,18 +26,17 @@ export default function ProfilePage() {
     bloodType: '',
     emergencyContact: '',
   });
+  
+  const [totalDonationsCount, setTotalDonationsCount] = useState(0); 
+  const [myDonationsList, setMyDonationsList] = useState<any[]>([]); 
   const [isSaving, setIsSaving] = useState(false);
-
-  // Hook Upload untuk Foto Profil & Verifikasi
   const { upload, isUploading } = useFirebaseUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Proteksi Halaman & Load Data Tambahan
   useEffect(() => {
     if (!isLoadingAuth && !currentUser) {
       router.push('/login');
     } else if (currentUser) {
-      // Load data tambahan dari Firestore saat profil dibuka
       const loadUserData = async () => {
         try {
           const docRef = doc(db, 'users', currentUser.uid);
@@ -58,6 +56,19 @@ export default function ProfilePage() {
         }
       };
       loadUserData();
+
+      const qDonations = query(collection(db, 'logistic_offers'), where('donor.uid', '==', currentUser.uid));
+
+      const unsubscribe = onSnapshot(qDonations, (snapshot) => {
+        setTotalDonationsCount(snapshot.size); 
+        const list = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setMyDonationsList(list);
+      });
+
+      return () => unsubscribe();
     }
   }, [currentUser, isLoadingAuth, router]);
 
@@ -69,21 +80,16 @@ export default function ProfilePage() {
     const toastId = toast.loading('Mengupload foto profil...');
 
     try {
-      // A. Upload ke Storage (Cloudinary/Firebase)
       const downloadUrl = await upload(file);
 
       if (!downloadUrl) throw new Error('Gagal upload gambar');
-
-      // B. Update di Firebase Auth (Agar sync di semua app Google)
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, { photoURL: downloadUrl });
       }
 
-      // C. Update di Firestore (Database User)
       const userRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userRef, { photoURL: downloadUrl });
 
-      // D. Update State Lokal (Zustand) agar UI berubah instan
       setCurrentUser({ ...currentUser, photoURL: downloadUrl });
 
       toast.success('Foto profil diperbarui!', { id: toastId });
@@ -162,17 +168,14 @@ export default function ProfilePage() {
       )}
 
       <div className={`relative flex items-center gap-4 transition-all ${currentView !== 'main' ? 'pl-8' : ''}`}>
-        {/* Avatar Wrapper with Edit Button */}
         <div className="relative group">
           <div className="w-16 h-16 rounded-2xl bg-white/20 p-1 border-2 border-white/30 overflow-hidden shrink-0 relative">
             {currentUser.photoURL ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={currentUser.photoURL} alt="Profile" className="w-full h-full object-cover rounded-xl" />
+              <img src={currentUser.photoURL || `https://ui-avatars.com/api/?name=${currentUser.displayName}`} alt="Profile" className="w-full h-full object-cover rounded-xl" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold bg-slate-400 rounded-xl">{currentUser.displayName?.charAt(0)}</div>
             )}
 
-            {/* Overlay Loading saat upload */}
             {isUploading && (
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-xl">
                 <Loader2 className="animate-spin text-white" size={20} />
@@ -180,7 +183,6 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* Tombol Kamera (Hanya di menu utama) */}
           {currentView === 'main' && (
             <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-2 -right-2 bg-white text-slate-700 p-1.5 rounded-full shadow-md border border-slate-200 active:scale-95 transition-transform">
               <Camera size={14} />
@@ -208,7 +210,7 @@ export default function ProfilePage() {
     </div>
   );
 
-  // ─── MENU 1: MAIN DASHBOARD ───
+  // ─── MAIN DASHBOARD ───
   // ─── MENU 1: INFORMASI PRIBADI ───
   const renderPersonalInfo = () => (
     <div className="px-4 -mt-8 relative z-20 pb-8">
@@ -307,7 +309,7 @@ export default function ProfilePage() {
       <div className="px-4 -mt-8 relative z-10 mb-4">
         <div className="bg-white rounded-2xl shadow-md p-4 grid grid-cols-3 divide-x divide-slate-100">
           <StatBox icon="📋" val={myReports.length} label="Laporan" />
-          <StatBox icon="❤️" val={myDonations.length} label="Donasi" />
+          <StatBox icon="❤️" val={totalDonationsCount} label="Donasi" />
           <StatBox icon="⭐" val={currentUser.points} label="Poin" />
         </div>
       </div>
@@ -327,14 +329,13 @@ export default function ProfilePage() {
         )}
 
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <MenuButton 
-          icon={<User size={20} className="text-slate-600" />} 
-          label="Informasi Pribadi" 
-          // subtitle="Nama, Alamat, Kontak"
-          onClick={() => setCurrentView('personal_info')} 
-        />
+          <MenuButton
+            icon={<User size={20} className="text-slate-600" />}
+            label="Informasi Pribadi"
+            onClick={() => setCurrentView('personal_info')}
+          />
           <MenuButton icon={<div className="text-xl">📋</div>} label="Riwayat Laporan" badge={myReports.length > 0 ? myReports.length.toString() : null} onClick={() => setCurrentView('history_reports')} />
-          <MenuButton icon={<div className="text-xl">❤️</div>} label="Riwayat Donasi" badge={myDonations.length > 0 ? myDonations.length.toString() : null} onClick={() => setCurrentView('history_donations')} />
+          <MenuButton icon={<div className="text-xl">❤️</div>} label="Riwayat Donasi" badge={totalDonationsCount > 0 ? totalDonationsCount.toString() : null} onClick={() => setCurrentView('history_donations')} />
           <MenuButton icon={<Bell size={20} className="text-slate-600" />} label="Pengaturan Notifikasi" onClick={() => setCurrentView('settings_notif')} />
           <MenuButton icon={<Shield size={20} className="text-slate-600" />} label="Verifikasi Identitas" badge={currentUser.role === 'admin' ? 'VERIFIED' : '⚠️'} onClick={() => setCurrentView('verification')} />
           <MenuButton icon={<HelpCircle size={20} className="text-slate-600" />} label="Bantuan & Dukungan" onClick={() => setCurrentView('support')} />
@@ -368,7 +369,7 @@ export default function ProfilePage() {
 
   // ─── MENU 3: VERIFIKASI IDENTITAS ───
   const renderVerification = () => {
-    const isVerified = currentUser.role === 'admin'; // Logic simulasi
+    const isVerified = currentUser.role === 'admin'; 
 
     return (
       <div className="px-4 -mt-6 relative z-10 space-y-4 pb-8">
@@ -441,7 +442,6 @@ export default function ProfilePage() {
   );
 
   // ─── MENU HISTORY (Reports & Donations) ───
-  // (Sama seperti sebelumnya, saya ringkas agar muat, tapi pastikan copy kode history dari jawaban sebelumnya)
   const renderReportsHistory = () => (
     <div className="px-4 -mt-6 relative z-10 space-y-3 pb-8">
       <div className="bg-white rounded-t-2xl p-4 border-b border-slate-100 sticky top-0 z-20 shadow-sm">
@@ -468,19 +468,24 @@ export default function ProfilePage() {
     <div className="px-4 -mt-6 relative z-10 space-y-3 pb-8">
       <div className="bg-white rounded-t-2xl p-4 border-b border-slate-100 sticky top-0 z-20 shadow-sm">
         <h3 className="font-bold text-slate-800">Riwayat Donasi</h3>
-        <p className="text-xs text-slate-400">Total {myDonations.length} komitmen</p>
+        <p className="text-xs text-slate-400">Total {totalDonationsCount} komitmen</p>
       </div>
-      {myDonations.length === 0 ? (
+      {myDonationsList.length === 0 ? (
         <EmptyState icon={<Package size={32} />} title="Belum Ada Donasi" desc="Bantu sesama sekarang." />
       ) : (
-        myDonations.map((d) => (
+        myDonationsList.map((d) => (
           <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-3">
-            <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
-              <Package size={18} />
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${d.status === 'available' ? 'bg-green-100 text-green-600' : 'bg-blue-50 text-blue-500'}`}>
+              {d.status === 'available' ? <CheckCircle size={18} /> : <Package size={18} />}
             </div>
             <div>
-              <h4 className="font-bold text-sm">{d.item}</h4>
-              <p className="text-xs text-slate-500">ke {d.reportLocation}</p>
+              <h4 className="font-bold text-sm">
+                {d.item} <span className="font-normal text-xs text-slate-400">({d.qty})</span>
+              </h4>
+              <p className="text-xs text-slate-500">{d.location?.name || 'Lokasi tidak tersedia'}</p>
+              <span className={`text-[9px] px-2 py-0.5 rounded-full mt-1 inline-block ${d.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                {d.status === 'available' ? 'Diterima Admin' : 'Sedang Dikirim'}
+              </span>
             </div>
           </div>
         ))

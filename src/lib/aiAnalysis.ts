@@ -1,12 +1,5 @@
-// src/lib/aiAnalysis.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// AI Analysis Service — LogistikSiaga
-//
-// Powered by Google Gemini 1.5 Flash via Server Actions.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { AIAnalysisResult, ReportType, ReportSeverity } from '@/types';
-import { analyzeWithGemini } from '@/app/actions/analyze-gemini'; // Import Server Action
+import { analyzeWithGemini } from '@/app/actions/analyze-gemini';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,7 +8,6 @@ interface AnalysisStep {
   duration: number;
 }
 
-// Kita percepat durasi animasi UI karena Gemini Flash cukup cepat
 export const ANALYSIS_STEPS: AnalysisStep[] = [
   { label: 'Mengunggah ke Vision AI...', duration: 500 },
   { label: 'Mendeteksi objek & kerusakan...', duration: 1500 },
@@ -26,51 +18,42 @@ export const ANALYSIS_STEPS: AnalysisStep[] = [
 
 // ─── Main Analysis Function ───────────────────────────────────────────────────
 
-/**
- * Calls Gemini AI to analyze the image.
- * Uses a simulated progress stepper for better UX while waiting for the server.
- */
 export async function analyzeDisasterImage(imageUrl: string, onStepComplete?: (stepIndex: number, label: string) => void): Promise<AIAnalysisResult> {
-  // 1. Jalankan Analisis Gemini (Background Process)
-  // Kita panggil ini tanpa 'await' dulu agar animasi UI bisa jalan berbarengan
+  // 1. Jalankan Analisis Gemini (Server Action)
   const analysisPromise = analyzeWithGemini(imageUrl);
 
-  // 2. Jalankan Animasi Loading UI (Agar user tidak bosan)
-  // Ini akan jalan beriringan dengan proses fetch ke Gemini
+  // 2. Jalankan Animasi Loading UI
   for (let i = 0; i < ANALYSIS_STEPS.length; i++) {
     const step = ANALYSIS_STEPS[i];
-
-    // Cek apakah Gemini sudah selesai lebih cepat?
-    // (Opsional, tapi untuk MVP hackathon, sequence fix lebih mulus)
     onStepComplete?.(i, step.label);
     await delay(step.duration);
   }
 
-  // 3. Tunggu hasil Akhir
+  // 3. Tunggu hasil Akhir & Handle Error
   try {
     const result = await analysisPromise;
 
     if (!result) {
-      throw new Error('Gagal mendapatkan respon dari AI');
+      throw new Error('Hasil analisis kosong (null) dari server.');
     }
 
     return result;
   } catch (error) {
-    console.error('AI Analysis Failed, falling back to basic result', error);
+    console.error('AI Analysis Client Error:', error);
 
-    // Fallback aman jika API Error / Kuota Habis (PENTING untuk Demo)
+    // Fallback jika API Gagal / Kuota Habis
+    // Kita set confidence 0 agar form tidak otomatis terisi data ngawur
     return {
       type: 'other',
       severity: 'waspada',
-      description: 'Gagal menganalisis gambar secara otomatis. Silakan isi deskripsi secara manual.',
+      description: 'Gagal menganalisis gambar. Pastikan koneksi internet stabil atau isi manual.',
       needs: ['Bantuan Umum'],
       confidence: 0,
     };
   }
 }
 
-// ─── Severity Label Helpers ───────────────────────────────────────────────────
-// (Bagian ini tidak berubah, tetap sama seperti sebelumnya)
+// ─── Constants & Utils (Tidak Berubah) ────────────────────────────────────────
 
 export const SEVERITY_CONFIG: Record<ReportSeverity, { bg: string; text: string; dot: string; label: string; ring: string }> = {
   kritis: { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500', label: 'KRITIS', ring: 'ring-red-300' },
@@ -85,8 +68,6 @@ export const TYPE_CONFIG: Record<ReportType, { icon: string; label: string }> = 
   earthquake: { icon: '📳', label: 'Gempa Bumi' },
   other: { icon: '⚠️', label: 'Lainnya' },
 };
-
-// ─── Utilities ────────────────────────────────────────────────────────────────
 
 function delay(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));

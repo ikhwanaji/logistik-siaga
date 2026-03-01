@@ -11,7 +11,7 @@ import { submitReport } from '@/lib/reportsService';
 import { updateUserStats } from '@/lib/authService';
 
 import { AIAnalysisResult, Report } from '@/types';
-import { Camera, Upload, Loader2, CheckCircle, X, Zap, Send, ImagePlus, Navigation, RefreshCw } from 'lucide-react';
+import { Camera, Upload, Loader2, CheckCircle, X, Zap, Send, ImagePlus, Navigation, RefreshCw, XCircle } from 'lucide-react';
 
 // ─── Map Picker (client-only) ─────────────────────────────────────────────────
 const ReportMap = dynamic(() => import('@/components/map/ReportMap'), {
@@ -61,14 +61,12 @@ export default function ReportPage() {
   const [analysisStep, setAnalysisStep] = useState(-1);
   const [description, setDescription] = useState('');
   const [submittedId, setSubmittedId] = useState<string | null>(null);
-
-  // Camera State & Refs
+  const [aiError, setAiError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const { upload, progress: uploadProgress, downloadUrl, error: uploadError } = useFirebaseUpload();
   const { location, isLoading: isLocating, error: geoError, getCurrentLocation, setLocation } = useGeolocation();
 
@@ -106,14 +104,13 @@ export default function ReportPage() {
     }
   }, []);
 
-  // Auto start camera when entering capture step
   useEffect(() => {
     if (step === 'capture') {
       startCamera();
     } else {
       stopCamera();
     }
-    return () => stopCamera(); // Cleanup on unmount
+    return () => stopCamera(); 
   }, [step, startCamera, stopCamera]);
 
   // 3. Capture Photo from Video Stream
@@ -122,16 +119,13 @@ export default function ReportPage() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      // Set canvas size match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      // Draw image
       const context = canvas.getContext('2d');
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Convert to Base64 & File
         const dataUrl = canvas.toDataURL('image/jpeg');
         const file = dataURLtoFile(dataUrl, `capture-${Date.now()}.jpg`);
 
@@ -151,15 +145,16 @@ export default function ReportPage() {
 
   // 5. Common Processing Logic (Upload & Analyze)
   const processFile = async (file: File, localPreviewUrl: string) => {
-    stopCamera(); // Matikan kamera agar hemat baterai
+    stopCamera();
     setPreviewUrl(localPreviewUrl);
     setStep('uploading');
-
-    // Upload
+    setAiError(null); 
     const url = await upload(file);
-    if (!url) return;
+    if (!url) {
+      setStep('capture'); 
+      return;
+    }
 
-    // AI Analysis
     setStep('analyzing');
     setAnalysisStep(-1);
 
@@ -167,6 +162,23 @@ export default function ReportPage() {
       setAnalysisStep(stepIdx);
     });
 
+    if (!result) {
+      setAiError('Gagal menganalisis gambar.');
+      setStep('capture');
+      return;
+    }
+
+    // ─── 🛡️ GATEKEEPER LOGIC  ───
+    const isIrrelevant = result.type === 'other';
+    const isLowConfidence = result.confidence < 40;
+
+    if (isIrrelevant || isLowConfidence) {
+      setAiError('Gambar tidak terdeteksi sebagai bencana alam (Bukan Relevan). Mohon upload foto kejadian asli.');
+      setStep('capture'); 
+      return;
+    }
+
+    // ─── LOLOS GATEKEEPER ───
     setAiResult(result);
     setDescription(result.description);
     setStep('form');
@@ -213,6 +225,8 @@ export default function ReportPage() {
       voteCount: 0,
       reportedBy: realReporterName,
       needs: aiResult.needs,
+      isPublic: false,
+      aiConfidence: aiResult.confidence,
     };
     addOptimisticReport(optimisticReport);
 
@@ -242,15 +256,15 @@ export default function ReportPage() {
     }
   }, [aiResult, location, downloadUrl, description, addOptimisticReport, currentUser, setCurrentUser]);
 
-  // ─── Reset ─────────────────────────────────────────────────────────────────
+  
   const reset = () => {
     setStep('capture');
     setPreviewUrl(null);
     setAiResult(null);
+    setAiError(null); 
     setAnalysisStep(-1);
     setDescription('');
     setSubmittedId(null);
-    // Restart camera handled by useEffect dependency on 'step'
   };
 
   if (isLoadingAuth || !currentUser) {
@@ -313,8 +327,6 @@ export default function ReportPage() {
             </button>
           </div>
         )}
-
-        {/* ── STEP: CAPTURE (LIVE CAMERA) ─────────────────────────────────── */}
         {step === 'capture' && (
           <>
             <div className="relative bg-black rounded-2xl overflow-hidden shadow-lg border border-slate-800" style={{ aspectRatio: '4/3' }}>
@@ -322,10 +334,9 @@ export default function ReportPage() {
               {!streamError ? (
                 <>
                   <video ref={videoRef} autoPlay playsInline muted onLoadedMetadata={() => setIsStreaming(true)} className={`w-full h-full object-cover transition-opacity duration-500 ${isStreaming ? 'opacity-100' : 'opacity-0'}`} />
-                  {/* Canvas tersembunyi untuk snapshot */}
                   <canvas ref={canvasRef} className="hidden" />
 
-                  {/* Loading Spinner jika belum ready */}
+                  {/* Loading Spinner */}
                   {!isStreaming && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/50">
                       <Loader2 size={32} className="animate-spin text-white" />
@@ -334,7 +345,6 @@ export default function ReportPage() {
                   )}
                 </>
               ) : (
-                // Fallback jika permission denied
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/50">
                   <Camera size={48} className="text-slate-700" />
                   <p className="text-sm font-medium">Kamera tidak aktif</p>
@@ -356,7 +366,7 @@ export default function ReportPage() {
                 ))}
               </div>
 
-              {/* SHUTTER BUTTON (Hanya muncul jika streaming aktif) */}
+              {/* SHUTTER BUTTON */}
               {isStreaming && (
                 <div className="absolute bottom-4 inset-x-0 flex justify-center pointer-events-auto">
                   <button onClick={handleCapturePhoto} className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center bg-white/20 backdrop-blur-sm active:scale-95 transition-transform">
@@ -366,8 +376,19 @@ export default function ReportPage() {
               )}
             </div>
 
-            {/* Hidden Input untuk Gallery Fallback */}
+            {/* Hidden Input Gallery */}
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+            {aiError && (
+              <div className="mt-2 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 animate-in slide-in-from-top-2">
+                <div className="bg-red-100 p-2 rounded-full text-red-600 flex-shrink-0">
+                  <XCircle size={20} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-red-800">Foto Ditolak</h4>
+                  <p className="text-xs text-red-600 mt-1 leading-relaxed">{aiError}</p>
+                </div>
+              </div>
+            )}
 
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -392,7 +413,6 @@ export default function ReportPage() {
           <>
             {previewUrl && (
               <div className="relative rounded-2xl overflow-hidden shadow-lg" style={{ aspectRatio: '4/3' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
                   <Upload size={32} className="text-white animate-bounce" />

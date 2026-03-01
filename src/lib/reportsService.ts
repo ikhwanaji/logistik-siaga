@@ -1,12 +1,4 @@
-// src/lib/reportsService.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// Firestore Reports Service — LogistikSiaga
-//
-// All direct Firestore operations are here. Components/hooks import
-// from this file — never call Firestore directly in UI code.
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { collection, addDoc, updateDoc, doc, increment, serverTimestamp, query, orderBy, limit, getDocs, where, QueryConstraint, getDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, increment, serverTimestamp, query, orderBy, limit, getDocs, where, QueryConstraint, getDoc,arrayUnion, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { FirestoreReport, Report, ReportSeverity, ReportType, AIAnalysisResult, GeoLocation } from '@/types';
 
@@ -22,15 +14,16 @@ export interface SubmitReportPayload {
   location: GeoLocation;
   imageUrl: string;
   reportedBy: string;
-  description?: string; // user can override AI description
+  description?: string;
 }
 
-/**
- * Saves a new disaster report to Firestore.
- * Returns the new document ID.
- */
 export async function submitReport(payload: SubmitReportPayload): Promise<string> {
   const { aiResult, location, imageUrl, reportedBy, description } = payload;
+
+  // 1. LOGIKA SKENARIO 2 (AI Score Threshold)
+  // Jika Confidence > 85%, tampilkan langsung (isPublic = true).
+  // Sisanya (termasuk < 50% atau ragu-ragu), sembunyikan (isPublic = false) menunggu Admin.
+  const isHighConfidence = aiResult.confidence > 85;
 
   const newReport: Omit<FirestoreReport, 'id'> = {
     timestamp: serverTimestamp(),
@@ -39,7 +32,17 @@ export async function submitReport(payload: SubmitReportPayload): Promise<string
     description: description ?? aiResult.description,
     location,
     imageUrl,
-    status: 'pending', // awaits community verification
+
+    // Status awal selalu pending, tapi visibilitas tergantung AI
+    status: 'pending',
+
+    // Field baru untuk Query Cepat di Homepage
+    // True = Muncul di Home, False = Hanya muncul di Admin Dashboard
+    isPublic: isHighConfidence,
+
+    // Simpan skor asli untuk logika UI (Badge Kuning)
+    aiConfidence: aiResult.confidence,
+
     voteCount: 0,
     reportedBy,
     needs: aiResult.needs,
@@ -49,31 +52,46 @@ export async function submitReport(payload: SubmitReportPayload): Promise<string
   return docRef.id;
 }
 
-// ─── UPDATE ───────────────────────────────────────────────────────────────────
+// ─── UPDATE (PERAN ADMIN) ─────────────────────────────────────────────────────
 
-/**
- * Upvote a report (atomic increment — safe for concurrent updates)
- */
 export async function upvoteReport(reportId: string): Promise<void> {
   const docRef = doc(db, REPORTS_COL, reportId);
   await updateDoc(docRef, { voteCount: increment(1) });
 }
 
 /**
- * Mark a report as verified (admin/moderator action)
+ * Skenario 3: Admin mengubah status jadi Verified.
+ * Efek: Status 'verified' DAN paksa 'isPublic' jadi true (agar muncul di feed).
  */
 export async function verifyReport(reportId: string): Promise<void> {
   const docRef = doc(db, REPORTS_COL, reportId);
-  await updateDoc(docRef, { status: 'verified' });
+  await updateDoc(docRef, {
+    status: 'verified',
+    isPublic: true, // Pastikan tampil public
+  });
 }
 
-// ─── READ (one-time, for SSR/SSG) ────────────────────────────────────────────
-
 /**
- * Fetch reports once (non-realtime). Useful for SSR initial data.
+ * Skenario 3: Admin menolak laporan (Hoax/Spam).
+ * Efek: Status 'rejected' DAN 'isPublic' jadi false (hilang dari feed).
  */
+export async function rejectReport(reportId: string): Promise<void> {
+  const docRef = doc(db, REPORTS_COL, reportId);
+  await updateDoc(docRef, {
+    status: 'rejected',
+    isPublic: false, // Sembunyikan/Shadow ban
+  });
+}
+
+// ─── READ (Untuk SSR/SSG) ────────────────────────────────────────────
+
 export async function fetchReports(options?: { maxItems?: number; severity?: ReportSeverity; type?: ReportType }): Promise<Report[]> {
-  const constraints: QueryConstraint[] = [orderBy('timestamp', 'desc'), limit(options?.maxItems ?? 20)];
+  const constraints: QueryConstraint[] = [
+    // Filter SSR juga harus mematuhi aturan publik
+    where('isPublic', '==', true),
+    orderBy('timestamp', 'desc'),
+    limit(options?.maxItems ?? 20),
+  ];
 
   if (options?.severity) constraints.push(where('severity', '==', options.severity));
   if (options?.type) constraints.push(where('type', '==', options.type));
@@ -92,6 +110,15 @@ export async function fetchReports(options?: { maxItems?: number; severity?: Rep
   });
 }
 
+export async function resolveReport(reportId: string): Promise<void> {
+  const docRef = doc(db, 'reports', reportId);
+  await updateDoc(docRef, { 
+    status: 'resolved', // Status baru: Masalah selesai
+    isPublic: false,    // Sembunyikan dari Home
+    resolvedAt: serverTimestamp() 
+  });
+}
+
 export async function getReportById(id: string): Promise<Report | null> {
   try {
     const docRef = doc(db, 'reports', id);
@@ -99,25 +126,20 @@ export async function getReportById(id: string): Promise<Report | null> {
 
     if (docSnap.exists()) {
       const data = docSnap.data();
-
-      // KONVERSI TIMESTAMP PENTING DI SINI 👇
       let resolvedDate: Date;
 
       if (data.timestamp instanceof Timestamp) {
-        // Jika formatnya Firestore Timestamp, gunakan .toDate()
         resolvedDate = data.timestamp.toDate();
       } else if (data.timestamp?.seconds) {
-        // Jika formatnya objek { seconds: ... }, buat Date manual
         resolvedDate = new Date(data.timestamp.seconds * 1000);
       } else {
-        // Fallback ke Date sekarang atau format string/date biasa
         resolvedDate = new Date(data.timestamp || Date.now());
       }
 
       return {
         id: docSnap.id,
         ...data,
-        timestamp: resolvedDate, // ✅ Sekarang pasti objek Date JS valid
+        timestamp: resolvedDate,
       } as Report;
     } else {
       return null;
@@ -125,5 +147,28 @@ export async function getReportById(id: string): Promise<Report | null> {
   } catch (error) {
     console.error('Error fetching report:', error);
     return null;
+  }
+}
+
+
+export interface LogisticUpdateData {
+  needs: string[]; // List nama barang terbaru
+  needsTargets: Record<string, number>; // Mapping { "Beras": 100, "Selimut": 50 }
+}
+
+export async function updateReportLogistics(reportId: string, data: LogisticUpdateData) {
+  try {
+    const reportRef = doc(db, 'reports', reportId);
+    
+    await updateDoc(reportRef, {
+      needs: data.needs,           // Update list item (jika ada penambahan)
+      needsTargets: data.needsTargets, // Update target angka
+      lastLogisticsUpdate: new Date() // Audit trail
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Gagal update logistik:", error);
+    throw error;
   }
 }

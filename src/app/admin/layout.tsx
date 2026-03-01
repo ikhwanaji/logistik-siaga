@@ -27,6 +27,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/reports', label: 'Verifikasi Laporan', icon: FileText },
     { href: '/admin/incoming', label: 'Barang Masuk', icon: Package },
+    { href: '/admin/outgoing', label: 'Barang Keluar', icon: Package },
     { href: '/admin/inventory', label: 'Gudang & Stok', icon: Package }, // 👈 Menu Baru
     { href: '/admin/users', label: 'Relawan & KYC', icon: Users },
   ];

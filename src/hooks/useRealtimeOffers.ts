@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAppStore } from '@/store/useAppStore';
 import { LogisticOffer } from '@/types';
@@ -9,7 +9,11 @@ export function useRealtimeOffers() {
 
   useEffect(() => {
     // Query: Ambil semua penawaran, urutkan dari yang terbaru
-    const q = query(collection(db, 'logistic_offers'), orderBy('createdAt', 'desc'));
+    const q = query(
+      collection(db, 'logistic_offers'),
+      where('status', 'in', ['available', 'pending_delivery']),
+      orderBy('createdAt', 'desc'),
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const offersData: LogisticOffer[] = snapshot.docs.map((doc) => {
@@ -21,7 +25,7 @@ export function useRealtimeOffers() {
           category: data.category,
           description: data.description,
           imageUrl: data.imageUrl,
-          // Map data object ke string sederhana untuk UI
+          targetReportId: data.targetReportId,
           donor: data.donor?.name || 'Hamba Allah',
           donorAvatar: data.donor?.avatar,
           location: data.location?.name || 'Lokasi tidak tersedia',

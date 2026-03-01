@@ -1,7 +1,4 @@
 // src/types/index.ts
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared TypeScript Types — LogistikSiaga
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { FieldValue, Timestamp } from 'firebase/firestore';
 
@@ -21,6 +18,7 @@ export interface UserProfile {
   createdAt: Date;
 }
 
+
 export interface LogisticOffer {
   id: string;
   item: string;
@@ -28,23 +26,24 @@ export interface LogisticOffer {
   category?: string;
   description?: string;
   imageUrl?: string;
-  donor: string; // Nama donatur
+  donor: string; 
   donorAvatar?: string;
-  location: string; // Nama lokasi
-  status: 'available' | 'claimed';
+  location: string;
+  // Status diperluas agar support 'pending_delivery'
+  status: 'available' | 'claimed' | 'pending_delivery'; 
+  targetReportId?: string; // Field kunci untuk progress bar
   createdAt?: Date;
 }
 
 export interface GeoLocation {
   lat: number;
   lng: number;
-  name: string; // Human-readable address (e.g., "Kampung Melayu, Jakarta Timur")
+  name: string;
 }
 
-/** Shape stored in Firestore `reports` collection */
 export interface FirestoreReport {
   id: string;
-  timestamp: Timestamp | FieldValue; // serverTimestamp() on write, Timestamp on read
+  timestamp: Timestamp | FieldValue;
   type: ReportType;
   severity: ReportSeverity;
   description: string;
@@ -52,19 +51,21 @@ export interface FirestoreReport {
   imageUrl: string;
   status: ReportStatus;
   voteCount: number;
-  reportedBy: string; // display name
-  needs: string[]; // e.g. ["Air Mineral", "Selimut"]
+  reportedBy: string;
+  needs: string[];
+  isPublic: boolean;
+  aiConfidence: number;
+  needsTargets?: Record<string, number>;
+  aiResult?: AIAnalysisResult;
 }
 
-/** Client-side version (timestamp already resolved) */
 export interface Report extends Omit<FirestoreReport, 'timestamp'> {
   timestamp: Date;
 }
 
-// ─── Logistics ────────────────────────────────────────────────────────────────
-
 export type NeedCategory = 'Pangan' | 'Sandang' | 'Medis' | 'Bayi' | 'Infrastruktur';
 
+// Interface LogisticNeed opsional (jika dipakai di komponen UI)
 export interface LogisticNeed {
   id: string;
   item: string;
@@ -74,55 +75,29 @@ export interface LogisticNeed {
   total: number;
   urgent: boolean;
   category: NeedCategory;
-  linkedReportId?: string; // optional: links to a report
+  linkedReportId?: string;
 }
-
-export interface LogisticOffer {
-  id: string;
-  item: string;
-  qty: string;
-  donor: string;
-  location: string;
-  status: 'available' | 'claimed';
-}
-
-// ─── AI Analysis Result ───────────────────────────────────────────────────────
 
 export interface AIAnalysisResult {
   type: ReportType;
   severity: ReportSeverity;
   description: string;
   needs: string[];
-  confidence: number; // 0–100
+  confidence: number;
 }
 
-// ─── Zustand Store ────────────────────────────────────────────────────────────
-
 export interface AppState {
-  // Data Laporan
   reports: Report[];
   liveCount: number;
-
-  // Data Donasi
   donatedItems: Record<string, boolean>;
-
-  // UI State
   isConnected: boolean;
-
-  // Auth State (WAJIB ADA)
   currentUser: UserProfile | null;
   isLoadingAuth: boolean;
-
   offers: LogisticOffer[];
-
-  // Actions
   setReports: (reports: Report[]) => void;
   setIsConnected: (v: boolean) => void;
   addOptimisticReport: (report: Report) => void;
   toggleDonation: (id: string, points: number) => void;
-
-  // Auth Actions 
   setCurrentUser: (user: UserProfile | null) => void;
-  
   setOffers: (offers: LogisticOffer[]) => void;
 }

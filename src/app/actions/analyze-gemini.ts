@@ -17,21 +17,40 @@ export async function analyzeWithGemini(imageUrl: string): Promise<AIAnalysisRes
 
     // 2. Prompt Engineering (Instruksi agar Output JSON sesuai Schema kita)
     const promptText = `
-      Kamu adalah asisten ahli bencana alam. Analisis gambar ini.
-      Berikan output HANYA dalam format JSON (tanpa markdown code block) dengan skema berikut:
-      {
-        "type": "flood" | "landslide" | "fire" | "earthquake" | "other",
-        "severity": "kritis" | "sedang" | "waspada",
-        "description": "Deskripsi singkat 2-3 kalimat bahasa Indonesia tentang visual bencana, ketinggian air (jika banjir), dan kerusakan.",
-        "needs": ["3-5 item logistik paling mendesak berdasarkan visual"],
-        "confidence": number (0-100)
-      }
-      
-      Panduan Severity:
-      - "kritis": Kerusakan bangunan parah, arus deras, atau ancaman nyawa.
-      - "sedang": Akses terputus, banjir > 50cm, tapi bangunan aman.
-      - "waspada": Genangan rendah atau tanda awal longsor.
-    `;
+      PERAN:
+  Kamu adalah ahli manajemen bencana dan logistik darurat dari BNPB Indonesia. Tugasmu adalah menganalisis gambar laporan warga secara objektif untuk menentukan prioritas bantuan.
+
+  INSTRUKSI UTAMA:
+  1. Analisis gambar secara visual. Deteksi jenis bencana, tingkat kerusakan, dan kondisi lingkungan.
+  2. Jika gambar TIDAK relevan dengan bencana (misal: foto selfie, hewan lucu, screenshot game, atau pemandangan normal), setel "confidence" ke 0 dan "type" ke "other".
+  3. Berikan output HANYA dalam format JSON murni sesuai skema di bawah.
+
+  PANDUAN SEVERITY (TINGKAT KEPARAHAN):
+  - "kritis": 
+    * Banjir > 1 meter (setinggi dada orang dewasa/atap rumah).
+    * Bangunan runtuh total/rata dengan tanah.
+    * Kebakaran api besar yang sedang menyala.
+    * Adanya korban luka atau orang terjebak terlihat di foto.
+  - "sedang": 
+    * Banjir 50cm - 1 meter (setinggi lutut/pinggang).
+    * Bangunan retak parah atau atap hilang sebagian, tapi masih berdiri.
+    * Pohon tumbang menghalangi jalan utama.
+  - "waspada": 
+    * Genangan air < 50cm (mata kaki).
+    * Retakan kecil pada bangunan.
+    * Tanda-tanda awal tanah bergerak.
+
+  OUTPUT SCHEMA (JSON):
+  {
+    "type": "flood" | "landslide" | "fire" | "earthquake" | "other",
+    "severity": "kritis" | "sedang" | "waspada",
+    "description": "Deskripsi singkat (maks 25 kata) bahasa Indonesia. Fokus pada FAKTA visual: ketinggian air, material bangunan (kayu/beton), dan akses jalan.",
+    "needs": [
+      "Sebutkan 3-5 item spesifik. Contoh: 'Perahu Karet' (bukan 'Alat transport'), 'Susu Bayi' (bukan 'Makanan'), 'Terpal' (bukan 'Alat tidur'). Hindari 'Uang tunai'."
+    ],
+    "confidence": number (0-100, berikan < 40 jika gambar buram/tidak jelas/tidak relevan)
+  }
+`;
 
     // 3. Panggil Model dengan SDK Baru (@google/genai)
     // Menggunakan gemini-1.5-flash karena stabil & cepat untuk free tier.
@@ -70,10 +89,12 @@ export async function analyzeWithGemini(imageUrl: string): Promise<AIAnalysisRes
       severity: data.severity || 'waspada',
       description: data.description || 'Tidak ada deskripsi visual.',
       needs: data.needs || [],
-      confidence: data.confidence || 80,
+      confidence: typeof data.confidence === 'number' ? data.confidence : 0,  
     };
   } catch (error) {
     console.error('Gemini SDK Error:', error);
     return null; // Akan ditangani di client sebagai fallback
   }
 }
+
+

@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, Timestamp, FirestoreError } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, Timestamp, FirestoreError, where } from 'firebase/firestore'; // Tambah 'where'
 import { db } from '@/lib/firebase';
 import { useAppStore } from '@/store/useAppStore';
 import { Report, FirestoreReport } from '@/types';
 
-// ─── Converter: raw Firestore doc → typed Report ──────────────────────────────
+// ─── Converter ──────────────────────────────────────────────────────────────
 function convertDoc(raw: FirestoreReport & { id: string }): Report {
   const ts = raw.timestamp as Timestamp;
   return {
@@ -18,30 +18,32 @@ function convertDoc(raw: FirestoreReport & { id: string }): Report {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 interface Options {
-  maxItems?: number; // default 50
+  maxItems?: number;
 }
 
 export function useRealtimeReports({ maxItems = 50 }: Options = {}) {
   const setReports = useAppStore((s) => s.setReports);
   const setIsConnected = useAppStore((s) => s.setIsConnected);
 
-  // Track if first snapshot has arrived (for loading state)
   const isFirstSnapshotRef = useRef(true);
 
   useEffect(() => {
     const reportsRef = collection(db, 'reports');
-    const q = query(reportsRef, orderBy('timestamp', 'desc'), limit(maxItems));
 
-    setIsConnected(false); // mark as connecting
+    // 🔍 QUERY BARU (PRODUCTION STANDARD)
+    // Hanya ambil yg isPublic == true.
+    // Laporan dgn AI Score rendah (Shadow ban) otomatis TIDAK AKAN DIAMBIL.
+    const q = query(reportsRef, where('isPublic', '==', true), where('status', 'in', ['verified', 'pending']), orderBy('timestamp', 'desc'), limit(maxItems));
+
+    setIsConnected(false);
 
     const unsubscribe = onSnapshot(
       q,
-      // ── Success handler ───────────────────────────────────────────────────
       (snapshot) => {
         const reports: Report[] = snapshot.docs.map((doc) =>
           convertDoc({
-            ...(doc.data() as FirestoreReport), 
-            id: doc.id, // 
+            ...(doc.data() as FirestoreReport),
+            id: doc.id,
           }),
         );
 
@@ -49,19 +51,17 @@ export function useRealtimeReports({ maxItems = 50 }: Options = {}) {
         setIsConnected(true);
         isFirstSnapshotRef.current = false;
       },
-      // ── Error handler ─────────────────────────────────────────────────────
       (error: FirestoreError) => {
         console.error('[useRealtimeReports] Firestore error:', error.code, error.message);
         setIsConnected(false);
 
-        // Retry logic for permission errors (e.g., user not yet authed)
-        if (error.code === 'permission-denied') {
-          console.warn('[useRealtimeReports] Check Firestore security rules.');
+        // Error Index biasanya muncul di sini karena query baru
+        if (error.message.includes('requires an index')) {
+          console.error('⚠️ ANDA PERLU MEMBUAT INDEX BARU DI FIREBASE CONSOLE KARENA QUERY BERUBAH (isPublic + timestamp)');
         }
       },
     );
 
-    // ── Cleanup on unmount ─────────────────────────────────────────────────
     return () => {
       unsubscribe();
       setIsConnected(false);
