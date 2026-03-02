@@ -67,8 +67,8 @@ export default function LogisticsPage() {
         if (report.severity === 'kritis') defaultTotal = 100;
         else if (report.severity === 'waspada') defaultTotal = 50;
 
-        const finalTotal = (manualTarget !== undefined) ? manualTarget : defaultTotal;
-        
+        const finalTotal = manualTarget !== undefined ? manualTarget : defaultTotal;
+
         const needId = `${report.id}_${needItem}`;
 
         const relatedOffers = offers.filter((o) => o.targetReportId === report.id && o.item === needItem && ['available', 'pending_delivery'].includes(o.status));
@@ -175,7 +175,7 @@ export default function LogisticsPage() {
     try {
       const docRef = await addDoc(collection(db, 'logistic_offers'), {
         type: 'pledge',
-        status: 'pending_delivery', 
+        status: 'pending_delivery',
         item: selectedNeed.item,
         qty: `${pledgeQty} Unit`,
         category: selectedNeed.category,
@@ -224,7 +224,7 @@ export default function LogisticsPage() {
     }
 
     setTargetClaimOffer(offer);
-    setClaimQuantity(1); 
+    setClaimQuantity(1);
     setShowClaimInputModal(true);
   };
   const submitClaim = async () => {
@@ -238,7 +238,7 @@ export default function LogisticsPage() {
       return;
     }
 
-    setIsClaiming(targetClaimOffer.id); 
+    setIsClaiming(targetClaimOffer.id);
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -278,8 +278,8 @@ export default function LogisticsPage() {
       });
 
       // Sukses
-      setShowClaimInputModal(false); 
-      setClaimedItem({ ...targetClaimOffer, qty: `${claimQuantity} Unit` }); 
+      setShowClaimInputModal(false);
+      setClaimedItem({ ...targetClaimOffer, qty: `${claimQuantity} Unit` });
       toast.success(`Berhasil booking ${claimQuantity} unit!`);
     } catch (error: any) {
       console.error(error);
@@ -337,7 +337,7 @@ export default function LogisticsPage() {
             {filteredNeeds.length === 0 && <div className="text-center py-10 text-slate-400 text-sm">Belum ada kebutuhan mendesak saat ini.</div>}
 
             {filteredNeeds.map((item) => {
-              const remaining = Math.max(0, item.total - item.collected); 
+              const remaining = Math.max(0, item.total - item.collected);
               const pct = Math.min(100, Math.round((item.collected / item.total) * 100));
               const isFull = item.status === 'fulfilled';
 
@@ -435,7 +435,10 @@ export default function LogisticsPage() {
                       👤 <span className="text-slate-600 font-medium">{item.donor}</span>
                     </p>
                     <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <MapPin size={10} /> {item.location}
+                      <MapPin size={10} />{' '}
+                      {item.location && typeof item.location === 'object'
+                        ? (item.location as any).name 
+                        : item.location || 'Lokasi tidak tersedia'}
                     </p>
                   </div>
                   {item.status === 'available' && (

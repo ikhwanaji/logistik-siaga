@@ -118,6 +118,17 @@ export default function CreateOfferPage() {
     setIsSubmitting(true);
 
     try {
+      let finalLocation = null;
+
+      if (deliveryMethod === 'pickup') {
+        finalLocation = location; 
+      } else {
+        if (selectedReportId === 'general') {
+           finalLocation = { name: "Gudang Logistik Pusat", lat: -6.200, lng: 106.816 }; 
+        } else if (selectedReportData?.location) {
+           finalLocation = selectedReportData.location;
+        }
+      }
       await addDoc(collection(db, 'logistic_offers'), {
         item: formData.itemName,
         category: formData.category,
@@ -126,7 +137,7 @@ export default function CreateOfferPage() {
         imageUrl: downloadUrl,
         deliveryMethod: deliveryMethod,
         targetReportId: selectedReportId || null,
-        location: deliveryMethod === 'pickup' ? location : null,
+        location: finalLocation,
 
         donor: {
           uid: currentUser?.uid,

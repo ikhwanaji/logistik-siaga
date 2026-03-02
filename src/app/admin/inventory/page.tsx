@@ -143,7 +143,7 @@ export default function AdminInventoryPage() {
                       <MapPin size={14} className="text-red-500 flex-shrink-0" />
                       <span className="line-clamp-1 max-w-[200px]">
                         {/* Handle jika location berupa object atau string */}
-                        {typeof item.location === 'object' ? item.location.name : item.location || '-'}
+                        {item.location && typeof item.location === 'object' ? item.location.name : item.location || '-'}
                       </span>
                     </div>
                   </td>
@@ -198,7 +198,7 @@ export default function AdminInventoryPage() {
                     {/* Tampilkan Lokasi juga di card booking agar admin tau posisi */}
                     <p className="flex items-center gap-1 text-slate-600">
                       <MapPin size={12} className="text-red-500" />
-                      {typeof item.location === 'object' ? item.location.name : item.location || '-'}
+                      {item.location && typeof item.location === 'object' ? item.location.name : item.location || '-'}
                     </p>
 
                     <p className="text-red-500 font-medium ml-auto md:ml-0">Batas Waktu: {item.deadlineAt ? new Date(item.deadlineAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</p>
